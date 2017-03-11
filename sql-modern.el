@@ -33,27 +33,21 @@
                  (cons session-name session))))
 
 (defun sql-modern-stop-session (session-name)
-  )
+  (setq sql-modern-sessions
+        (cl-remove-if #'(lambda (sess)
+                          (string= session-name (car sess)))
+                      sql-modern-sessions)))
 
 (defun sql-modern--find-instance-count (conf)
   (let ((want (plist-get conf :name))
-        count)
-    (setq count
-          (->> sql-modern-sessions
-               (mapcar #'(lambda (rec)
-                           (-> rec
-                               (plist-get :conf)
-                               (plist-get :name))))
-               (message "%s")
-               (cl-reduce #'(lambda (acc name)
-                              (let (lis)
-                                (if (not (listp acc))
-                                    (setq lis `((,name . 1)))
-                                    (setq lis acc))
-                                (if (null (assoc name lis))
-                                    (add-to-list 'lis `(,name . 1))
-                                    (incf (cdr (assoc name lis))))
-                                lis)))
-               (assoc want)
-               (cdr)))
-    (or count 0)))
+        counts)
+    (loop
+       for rec being the elements of sql-modern-sessions
+       doing (let* ((conf-name (plist-get (plist-get (cdr rec) :conf) :name))
+                    (pair (or (assoc conf-name counts) (cons conf-name 0))))
+               (incf (cdr pair))
+               (if (assoc conf-name counts)
+                   (setf (cdr (assoc conf-name counts))
+                         (cdr pair))
+                   (push pair counts))))
+    (or (cdr (assoc want counts)) 0)))
