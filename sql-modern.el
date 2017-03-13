@@ -1,5 +1,3 @@
-;; FIXME require dash
-
 (defvar sql-modern-configurations '()
   "Database configurations. [...]")
 
@@ -21,6 +19,7 @@
 (defun sql-modern-start-session (conf)
   (let ((session `(:conf ,conf
                          :proc nil
+                         :procbuf nil
                          :inbuf nil
                          :outbuf nil))
         session-name proc inbuf outbuf)
@@ -51,3 +50,4 @@
                          (cdr pair))
                    (push pair counts))))
     (or (cdr (assoc want counts)) 0)))
+
