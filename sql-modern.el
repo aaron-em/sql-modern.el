@@ -122,7 +122,8 @@ the session. [...]")
                 ((eq type 'output)
                  (concat "*" basename ": output*"))))
         (mode (cond
-                ((eq type 'output) #'org-mode)
+                ((eq type 'input) #'sqlm-input-mode)
+                ((eq type 'output) #'sqlm-output-mode)
                 (t #'fundamental-mode)))
         buf)
     (when (null name)
@@ -149,7 +150,6 @@ the session. [...]")
     (process-put proc :conf conf)
     (process-put proc :session session)
     
-    ;; Attach process sentinel and filter
     (set-process-sentinel proc #'sql-modern--sql-process-sentinel)
     (set-process-filter proc #'sql-modern--sql-process-filter)
     
@@ -157,12 +157,53 @@ the session. [...]")
 
 (defun sql-modern--sql-process-sentinel (proc event)
   (let ((conf (process-get proc :conf))
-        (session (process-get proc :session)))
+        (session (process-get proc :session))
+        err)
+    ;; TODO capture and present process output
+    (with-current-buffer (cdr (assoc 'procbuf session))
+      (setq err (buffer-substring-no-properties (point) (point-max))))
     (sql-modern--cleanup-session session)
-    (error (concat "Process '" (process-name proc) "' " event))))
+    (error (concat "Process '" (process-name proc)
+                   "' " event err))))
 
 (defun sql-modern--sql-process-filter (proc string)
   ;; TODO when binding, wrap in a lexical scope containing conf and session
   ;; TODO handle input for all buffers (send to proc, insert into output)
   ;; TODO figure out how to handle process death
-  )
+  ;; (message "%s: %s" proc string)
+  (with-current-buffer (process-buffer proc)
+    (let ((posn (point)))
+      (goto-char (point-max))
+      (insert string)
+      (goto-char posn))))
+
+(define-derived-mode sqlm-input-mode
+    sql-mode
+  "SQLm In"
+  "..."
+  nil)
+
+(define-key sqlm-input-mode-map (kbd "C-c C-c")
+  #'sql-modern-input--send-paragraph)
+(define-key sqlm-input-mode-map (kbd "C-c C-r")
+  #'sql-modern-input--send-region)
+
+(define-derived-mode sqlm-output-mode
+    org-mode
+  "SQLm Out"
+  "..."
+  (read-only-mode t))
+
+(defun sql-modern-input--send-region (from to)
+  (interactive "r")
+  (message "%s" (buffer-substring-no-properties from to)))
+
+(defun sql-modern-input--send-paragraph nil
+  (interactive)
+  (let ((from (save-excursion
+                (backward-paragraph)
+                (point)))
+        (to (save-excursion
+              (forward-paragraph)
+              (point))))
+    (sql-modern-input--send-region from to)))
